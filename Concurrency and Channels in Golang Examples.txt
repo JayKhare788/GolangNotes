@@ -1,0 +1,590 @@
+Concept of finding state of channel
+
+https://play.golang.org/p/WPG3Z2zfH_n
+
+package main
+
+import "fmt"
+
+func greet(c chan string) {
+	//fmt.Println("Hello " + <-c + " !!!")
+	val, ok := <-c
+	fmt.Println(val, ok)
+	//<-c
+	//<-c
+}
+
+func main() {
+	fmt.Println("Main started!!")
+	c := make(chan string)			 //By default, a channel buffer size is 0 also called as unbuffered channel. Whatever written to the channel is immediately available to read.
+	go greet(c)
+	c <- "Jay"
+
+	close(c)
+
+	//c <- "user2"
+	fmt.Println("Main over")
+}
+=====================================================================================================================
+
+Concept of finding state of channel/closing channel/creating channel etc....using infinite for loop
+
+package main
+
+import "fmt"
+
+func squares(c chan int) {
+	for i := 0; i < 10; i++ {
+		c <- i * i
+	}
+	close(c)
+}
+
+func main() {
+	fmt.Println("main() started")
+	c := make(chan int)
+	go squares(c)
+	for {
+		val, ok := <-c			// remember reading or writing value to/from channel blocks the goroutine
+		if ok == true {
+			fmt.Println(val, ok)
+		} else {
+			fmt.Println("loop broke and value = ", val, "ok = ", ok)
+			break
+		}
+	}
+	fmt.Println("main function over")
+}
+====================================================================================================================
+same as above but using range instead of for{}
+
+package main
+
+import "fmt"
+
+func squares(c chan int) {
+	for i := 0; i < 10; i++ {
+		c <- i * i // this is blocked till main goroutine does not read the written value from channel
+	}
+	close(c)
+}
+
+func main() {
+	fmt.Println("main() started")
+	c := make(chan int)
+	go squares(c)
+	for value := range c { // range reads one value at a time
+		fmt.Println(value)
+	}
+	fmt.Println("main function over")
+	
+}
+=========================================================================================================================
+concept of capacity of channel
+
+package main
+
+import "fmt"
+
+func squares(c chan int) {
+	for i := 0; i < 3; i++ {
+		num := <-c //does not block till empty
+		fmt.Println(num * num)
+	}
+	close(c)
+}
+
+func main() {
+	fmt.Println("main() started")
+	c := make(chan int, 3)
+	go squares(c)
+	c <- 1
+	c <- 2
+	c <- 3
+	c <- 4 // blocks here
+	fmt.Println("main() over")
+}
+=========================================================================================================================
+length and capacity of channel
+
+package main
+
+import "fmt"
+
+func main() {
+	c := make(chan int, 3)
+	fmt.Println("len of c = ", len(c), "cap of c = ", cap(c))
+	c <- 1
+	c <- 2
+	fmt.Println("len of c = ", len(c), "cap of c = ", cap(c))
+	fmt.Println("values inside are ", <-c, <-c)
+}
+=========================================================================================================================
+another example
+
+package main
+
+import "fmt"
+
+func sender(c chan int) {
+	c <- 1
+	c <- 2
+	c <- 3
+	c <- 4
+	close(c)
+}
+
+func main() {
+	c := make(chan int, 3)
+	fmt.Printf("Length of channel is %v and capacity is %v\n", len(c), cap(c))
+	go sender(c)
+	for value := range c {
+		fmt.Printf("Length of channel is %v and capacity is %v after reading value %v\n", len(c), cap(c), value)
+	}
+}
+=========================================================================================================================
+Go scheduler also schedule goroutines on fmt.Println statement due to blocking I/O operation, however, this operation is not always blocking. 
+This is where the squares goroutine wake up again, runs the last iteration, prints the value in the channel using fmt.Println (again, this could be blocking), and dies.
+
+package main
+
+import (
+	"fmt"
+	"runtime"
+)
+
+func main() {
+	fmt.Println("main() started")
+	c := make(chan int, 3)
+	go squares(c)
+	fmt.Println("active goroutines ", runtime.NumGoroutine())
+	c <- 1
+	c <- 2
+	c <- 3
+	c <- 4
+	fmt.Println("active goroutine ", runtime.NumGoroutine())
+	go squares(c)
+	fmt.Println("active goroutine ", runtime.NumGoroutine())
+	c <- 5
+	c <- 6
+	c <- 7
+	c <- 8
+	fmt.Println("active goroutine ", runtime.NumGoroutine())
+
+	fmt.Println("main() over")
+}
+
+func squares(c chan int) {
+	for i := 0; i < 4; i++ {
+		num := <-c
+		fmt.Println(num * num)
+	}
+}
+=========================================================================================================================
+Printing values from a closed channel,Since for closed channels, data lives in the buffer, we can still extract that data.
+
+package main
+
+import "fmt"
+
+func main() {
+	c := make(chan int, 3)
+	c <- 1
+	c <- 2
+	c <- 3
+	close(c)
+
+	for element := range c {
+		fmt.Println(element)
+	}
+}
+=========================================================================================================================
+To understand how multiple goroutines execute..........{the question in comments is valid but on Visual Studio Code squares goroutine keeps execting all the time....run on playground 
+gives equal chance to both the goroutine.....basically try on playground it works....and question is valid wrt vsc}
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("main() started")
+	sqchn := make(chan int)
+	cuchn := make(chan int)
+	go squares(sqchn)
+	go cubes(cuchn)
+	testnum := 3
+	fmt.Println("main sent testnum to squares channel")
+	sqchn <- testnum   											// main will get blocked on writing to sqchn until some other goroutine reads from the sqchn channel
+	fmt.Println("main resumed")
+	fmt.Println("main sent testnum to cubes channel")
+	cuchn <- testnum
+	fmt.Println("main resumed")
+	fmt.Println("main reading from channels")
+	sqval, cuval := <-sqchn, <-cuchn
+	sum := sqval + cuval
+	fmt.Println("sum of squares and cubes of ", testnum, " is ", sum)
+	fmt.Println("main() over")
+}
+
+func squares(sqchn chan int) {			// why is this scheduled first all the time and not cubes func as compiler doesnt know which function is reading from the sqchn channel
+	fmt.Println("squares reading")
+	num := <-sqchn
+	sqchn <- num * num
+}
+
+func cubes(cuchn chan int) {			// in case this gets scheduled it would print "cubes reading" then block on next line.....but this func is always run after squares...why so?
+	fmt.Println("cubes reading")
+	num := <-cuchn
+	cuchn <- num * num * num
+}
+=========================================================================================================================
+Converting a bidirectional channel to a unidirectional channel
+
+package main
+
+import (
+	"fmt"
+)
+
+func greet(rc <-chan string) {
+	fmt.Println("Hello " + <-rc + " !!!!!!!!")		// rc is unidirectional
+}
+
+func main() {
+	fmt.Println("main() started")
+	c := make(chan string)			// c is bidirectional
+	go greet(c)
+	c <- "Jay"
+	fmt.Println("main() ended")
+
+}
+=========================================================================================================================
+Anonymous goroutine
+
+package main
+
+import (
+	"fmt"
+)
+
+func main() {
+	fmt.Println("main() started")
+
+	c := make(chan string)
+
+	go func(c chan string) { // greet is now an anon goroutine
+		fmt.Println("Hello " + <-c + " !!!!") // to make a goroutine anon remove name of normal goroutine and replace function call with code defination
+	}(c)
+	c <- "Jay"
+	fmt.Println("main() over")
+}
+=========================================================================================================================
+package main
+
+import "fmt"
+
+func main() { // think of it like given in comments
+	fmt.Println("main() started")
+	cc := make(chan chan string) //creating a empty tunnel
+	go greeter(cc)
+	c := <-cc //car exits tunnel to visit a pick up loacation to pick up passangers
+	go greet(c)
+	c <- "Jay" // car picks up Jay who is a passanger
+	fmt.Println("main() over")
+}
+
+func greet(c chan string) {
+	fmt.Println("Hello world from " + <-c + " !!!") // car reaches destination and jay gets out of car
+}
+
+func greeter(cc chan chan string) {
+	c := make(chan string) //creating a empty car
+	cc <- c                //inserting empty car into tunnel
+}
+=========================================================================================================================
+Concept of selecting channels(switch) 
+//Above program simulates real world web service where a load balancer gets millions of requests and it has to return a response from one of the services available. 
+//Using goroutines, channels and select, we can ask multiple services for a response, and one which responds quickly can be used.
+//The select statement is blocking except when it has a default case. Once, one of the case conditions fulfill, it will unblock. 
+//If all case statements (channel operations) are blocking then select statement will wait until one of the case statement (its channel operation) unblocks and that case will be executed. 
+//If some or all of the channel operations are non-blocking, then one of the non-blocking cases will be chosen randomly and executed immediately.
+
+package main
+import (
+	"fmt"
+	"time"
+)
+
+var start time.Time
+
+func init() {
+	start = time.Now()
+}
+
+func service1(c1 chan string) {
+	time.Sleep(3 * time.Millisecond)
+	c1 <- "This is message from service 1"
+}
+
+func service2(c2 chan string) {
+	time.Sleep(3 * time.Millisecond)
+	c2 <- "This is message from service2"
+}
+
+func main() {
+	fmt.Println("main() started", time.Since(start))
+	c1 := make(chan string)
+	c2 := make(chan string)
+	go service1(c1)
+	go service2(c2)
+	select {
+	case res := <-c1:
+		fmt.Println("Response from service 1 is ----- ", res, time.Since(start))
+	case res := <-c2:
+		fmt.Println("Response from servuce 2 is ", res, time.Since(start))
+	}
+
+	fmt.Println("main() over", time.Since(start))
+}
+=========================================================================================================================
+Continued from previous -  To simulate when all the cases are non-blocking and response is available at the same time, we can use a buffered channel.
+
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+var start time.Time
+
+func init() {
+	start = time.Now()
+}
+
+func main() {
+	fmt.Println("main() started", time.Since(start))
+	c1 := make(chan string, 2)
+	c2 := make(chan string, 2)
+	c1 <- "val 1.1"
+	c1 <- "val 1.2"
+	c2 <- "val 2.1"
+	c2 <- "val 2.2"
+	select {
+	case value := <-c1:
+		fmt.Println("value is ", value, time.Since(start))
+	case value := <-c2:
+		fmt.Println("value is ", value, time.Since(start))
+	}
+	fmt.Println("main() over", time.Since(start))
+}
+
+// In the above program, both channels have 2 values in their buffer. Since we are sending on 2 values in a channel of buffer capacity 2,
+//these channel operations won’t block and control  will go to select statement. 
+// Since reading from the buffered channel is non-blocking operation until the entire buffer is empty and we are reading only one value in case condition, all case operations are non-blocking.
+// Hence, Go runtime will select any case statement at random.
+=========================================================================================================================
+Understanding default case in select
+
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+var start time.Time
+
+func init() {
+	start = time.Now()
+}
+
+func service1(c1 chan string) {
+	fmt.Println("service1() started ", time.Since(start))
+	c1 <- "this is response from service 1"
+}
+
+func service2(c2 chan string) {
+	fmt.Println("service2() started", time.Since(start))
+	c2 <- "this is response from service 2"
+}
+
+func main() {
+	fmt.Println("main() started")
+	c1 := make(chan string)
+	c2 := make(chan string)
+	go service1(c1)
+	go service2(c2)
+
+	time.Sleep(3 * time.Second)
+
+	select {
+	case val := <-c1:
+		fmt.Println("Response from service1 is ", val, time.Since(start))
+	case val := <-c2:
+		fmt.Println("Response from service1 is ", val, time.Since(start))
+	default:
+	 	fmt.Println("no response received ", time.Since(start))
+	}
+	fmt.Println("main() over")
+}
+=========================================================================================================================
+nill channels
+
+package main
+
+import "fmt"
+
+func service(c chan string) {
+	c <- "Hello Jay"
+}
+
+func main() {
+	fmt.Println("main() started")
+
+	var c chan string
+	//c := make(chan string)
+	fmt.Printf("%T\n", c)
+	fmt.Printf("%v\n", c)
+
+	go service(c)
+
+	select {
+	case res := <-c:
+		fmt.Println("Response from channel1 is ", res)
+	default:
+		fmt.Println("no response")
+	}
+
+	fmt.Println(<-c)
+	fmt.Println("main() over")
+}
+=========================================================================================================================
+Using time.after instead of default
+
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+var start time.Time
+
+func init() {
+	start = time.Now()
+}
+
+func service1(c1 chan string) {
+	fmt.Println("inside service1")
+	time.Sleep(3 * time.Second)
+	c1 <- "response from service1"
+}
+
+func service2(c2 chan string) {
+	fmt.Println("inside service2")
+	time.Sleep(3 * time.Second)
+	c2 <- "response from service2"
+}
+
+func main() {
+	fmt.Println("main() started")
+	c1 := make(chan string)
+	c2 := make(chan string)
+	go service1(c1)
+	go service2(c2)
+	select {
+	case val := <-c1:
+		fmt.Println("Received from channel1 ", val, time.Since(start))
+	case val := <-c2:
+		fmt.Println("Received from channel2 ", val, time.Since(start))
+	case <-time.After(5 * time.Second):
+		fmt.Println("no response received", time.Since(start))
+	}
+	fmt.Println("main() over")
+}
+=========================================================================================================================
+Understanding empty select
+
+package main
+
+import "fmt"
+
+func service() {
+	fmt.Println("hello world")
+}
+
+func main() {
+	fmt.Println("main() started")
+	go service()
+	select {} //select statement is blocked until one of the cases unblocks, and since there are no case statements available to unblock it, the main goroutine will block forever resulting in a deadlock.
+	fmt.Println("main() stopped")
+}
+=========================================================================================================================
+understanding waitgroups
+when to use it - Let’s imagine a condition where you need to know if all goroutines finished their job. This is somewhat opposite to select where you needed only one condition to be true,
+but here you need all conditions to be true in order to unblock the main goroutine. Here the condition is successful channel operation.
+
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
+func service(wg *sync.WaitGroup, instance int) {
+	time.Sleep(2 * time.Second)
+	fmt.Println("Service called on instance ", instance)
+	wg.Done()
+}
+
+func main() {
+	fmt.Println("main() started")
+	var wg sync.WaitGroup
+	for i := 1; i < 4; i++ {
+		//	wg.Add(1)
+		go service(&wg, i)
+	}
+	wg.Wait()
+	fmt.Println("main() over")
+}
+
+// In waitgroup you have to wait until all jobs/goroutines are completed
+=========================================================================================================================
+understanding worker pool
+
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func Sqrworkers(task <-chan int, result chan<- int, instance int) { // roc arrow points going out from chan, soc arrow points going into chan
+	for num := range task {
+		time.Sleep(time.Millisecond) //If you remove, time.Sleep() call, then only one goroutine will perform the job as no other goroutines are scheduled until for range loop is done and goroutine dies.
+		fmt.Printf("[Worker %v] Sending results by worker %v\n", instance, instance)
+		result <- num * num
+	}
+}
+
+func main() {
+	fmt.Println("main() started")
+	task := make(chan int, 10)
+	result := make(chan int, 10)
+	for i := 0; i < 3; i++ {
+		go Sqrworkers(task, result, i)
+	}
+	for i := 0; i < 5; i++ {
+		task <- i * 2
+	}
+	close(task)
+	fmt.Println("main() wrote 5 tasks")
+	for i := 0; i < 5; i++ {
+		res := <-result  //blocks here
+		fmt.Printf("Square are %v\n", res) // cant be printed in order as you dont know which goroutine is scheduled first so we dont know which result gets calculated first...
+
+	}
+	fmt.Println("main() over")
+}
+=========================================================================================================================
