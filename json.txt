@@ -1,0 +1,614 @@
+JSON - GOLANG EXAMPLES
+
+=========================================================================================================================================
+Marshall function 
+//Marshal function only considers the exported fields for the encoding. (field names starting with capital letters)
+// marshall function returns json data in a slice of bytes
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type student struct {
+	Firstname, lastname, Email string
+	Age                        int
+	Height                     float64
+	Is_male                    bool
+}
+	
+func main() {
+	s := student{Firstname: "jay", lastname: "khare", Age: 21, Height: 1.6, Is_male: true}
+	fmt.Println(s) 
+	encodingval, _ := json.MarshalIndent(s) //encodingval is a slice of bytes which is basically UTF-8 encoded  json data ,
+    //the _ is a placeholder for err...it returns an error if the object "s" can not be encoded as JSON string due to some reasons.
+	fmt.Println(encodingval)
+	fmt.Println(string(encodingval))// type conversion of slice of bytes to string
+}
+=========================================================================================================================================
+Example to format JSON with newlines and indentation
+// To pretty print json pass "" into prefix argument and "<4 spaces>" into indentation argument
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type student struct {
+	Firstname, lastname, Email string
+	Age                        int
+	Height                     float64
+	Is_male                    bool
+}
+
+func main() {
+	s := student{Firstname: "jay", lastname: "khare", Age: 21, Height: 1.6, Is_male: true}
+	fmt.Println(s)
+	encodingval, _ := json.MarshalIndent(s, "", "    ")  // use MarshalIndent function which internally calls the Marshal function.
+	fmt.Println(encodingval)
+	fmt.Println(string(encodingval))
+}
+=========================================================================================================================================
+Example of encoding map data type into JSON format
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type student map[string]interface{} // student is a map whose keys are strings but values can be of any datatype implemented by empty interface
+//When an interface has zero methods, it is called an empty interface. This is represented by interface{}. Since the empty interface has zero methods, all types implement this interface implicitly.
+func main() {
+	s := student{"Firstname": "Jay", "lastname": "Khare", "Age": 10, "Height": 1.7, "is_Male": true}
+	fmt.Println(s)
+	enval, _ := json.Marshal(s)//considers all fields unlike exported fields which were considered in structs.(Captial first letter fields)
+	fmt.Println(enval)
+	fmt.Println(string(enval))
+}
+=========================================================================================================================================
+Example of encoding abstract types
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type Profile struct {
+	Username  string
+	followers int
+	Grades    map[string]string
+}
+
+type Student struct {
+	Firstname, lastname string
+	Age                 int
+	Profile             Profile
+	Languages           []string
+}
+
+func main() {
+	var john Student
+	fmt.Println(john)
+	john = Student{Firstname: "John", lastname: "Doe", Age: 21, Profile: Profile{Username: "collect78900", followers: 81, Grades: map[string]string{"Compilers": "A+", "ML&AI": "A+"}}, Languages: []string{"german", "arabic"}}
+	fmt.Println(john)
+	eval, _ := json.Marshal(john)
+	fmt.Println(string(eval))
+}
+=========================================================================================================================================
+Example with anonymously nested structure 
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type Profile struct {
+	Username  string
+	followers int
+	Grades    map[string]string
+}
+
+type Student struct {
+	Firstname, lastname string
+	Age                 int
+	Profile
+	Languages []string
+}
+
+func main() {
+	//var john Student
+	//fmt.Println(john)
+	john := Student{Firstname: "John", lastname: "Doe", Age: 21, Profile: Profile{Username: "collect78900", followers: 81}, Languages: []string{"german", "arabic"}}
+	fmt.Println(john)
+	eval, _ := json.MarshalIndent(john, "", "    ")
+	fmt.Println(string(eval))
+}
+=========================================================================================================================================
+Example of conflicting filed names in parent structure and nested structure
+//If a promoted field name conflicts with the field name from the parent structure, then the least nested field is selected for the marshaling.
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type Profile struct {
+	Username  string	//nested struct contains username
+	followers int
+	Grades    map[string]string
+}
+
+type Student struct {
+	Firstname, lastname,Username string		//parent struct contains username
+	Age                 int
+	Profile
+	Languages []string
+}
+
+func main() {
+	//var john Student
+	//fmt.Println(john)
+	john := Student{Firstname: "John", lastname: "Doe",Username:"abcd", Age: 21, Profile: Profile{Username: "collect78900", followers: 81}, Languages: []string{"german", "arabic"}}
+	fmt.Println(john)
+	eval, _ := json.MarshalIndent(john, "", "    ")
+	fmt.Println(string(eval))//will print username of parent struct(it will print "abcd")
+}
+
+
+=========================================================================================================================================
+Concept of passing pointer & interfaces to marshall function
+//If a value is a pointer, then the value of the pointer is used for the marshaling. 
+//If a value is an interface, then the concrete value(dynamic value) of the interface is used for the marshaling.
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type ProfileI interface {
+	follow()
+}
+
+func (p *Profile) follow() {
+	p.Followers = p.Followers + 1
+}
+
+type Profile struct {
+	Username  string
+	Followers int
+}
+
+type Student struct {
+	Firstname, lastname string
+	Age                 int
+	Primary             ProfileI //primary is a variable of type interface......s is a variable of interface shape
+	Secondary           ProfileI
+}
+
+func main() {
+	s := &Student{Firstname: "Jay", lastname: "Khare", Primary: &Profile{Username: "collect78900", Followers: 0}} //as s = Rect{4,5} similary assigning values to profile which is variable of type interface(profileI)
+	fmt.Println(s)
+	s.Primary.follow()
+	eval, err := json.MarshalIndent(s, "", "    ")
+	fmt.Println(string(eval), err) //secondary value is null because zero values of an interface is null   // Primary field has pointer to profile struct as its dynamic value
+}
+=========================================================================================================================================
+Concept of Using structure tags
+
+You need to encapsulate your struct tags with back quotes instead of using single quotes to create raw string literals which can allow for the inclusion of additional data in the tag field.
+Structure tags are ignored in general use cases, but you want to read the tag of a struct field, you can use built-in reflect package.
+
+In our case, Marshal function uses the tag of a struct field to obtain additional encoding/encoding information from the field. 
+<---------Important------->
+For JSON encoding, we need to use json:"options" tag value. Here, the options are comma-separated string values.
+The first option value is the name of the field that should appear in the JSON. 
+The other option values can be omitempty to discard a field if its value is empty or string to convert the field’s value to a string.
+<---------/Important------->
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type Profile struct {
+	Username  string `json:"uname"`
+	Followers int    `json:"followers,omitempty,string"`
+}
+
+type Student struct {
+	Firstname string  `json:"fname"`           //fname as field name
+	Lastname  string  `json:"lname,omitempty"` //lname as field name to be discared if empty
+	Email     string  `json:"-"`               // always discarded
+	Age       int     `json:"-,"`              // '-' as field name
+	IsMale    bool    `json:",string"`         // keep fieldname as it is convert (bool value i.e true or false) it into string
+	Profile   Profile `json:""`                //no effect
+}
+
+func main() {
+	john := &Student{Firstname: "John", Lastname: "Doe", Email: "johndoe@email.com", Age: 21, IsMale: true, Profile: Profile{Username: "JohnGG", Followers: 187}}
+	fmt.Println(*john)
+	eval, _ := json.MarshalIndent(john, "", "    ")
+	fmt.Println(string(eval))
+}
+=========================================================================================================================================
+Decoding  JSON - example of valid() function
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+func main() {
+	data := []byte(`{
+		"Firstname" :"Jay",
+		"Age" : 21,
+		"Username":"collect78900",
+		"Grades":null,
+		"Languages":["French","German"]
+	}`)
+
+	valid := json.Valid(data) // returns true if data format is valid for json (so that can be decoded without an error) otherwise will return false...
+	fmt.Println(valid)
+}
+=========================================================================================================================================
+Unmarshal function to decode JSON data
+//The Unmarshal function takes the JSON data as the first argument and the container v that will hold the data as the second argument. 
+//The v argument is either a pointer to a valid data structure or to an interface.
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type Student struct {
+	Firstname, lastname string
+	Age                 int
+	Email               string
+	Height              float64
+} // Any additional JSON fields, if not declared in the struct, won’t be unmarshalled.
+
+func main() {
+	var s Student //if value of a json field is missing it will not coerce into golang instead it will give error (eg. height value is missing in data then it wont assume default 0 while unmarshaling it will give error)
+	data := []byte(`{
+		"Firstname":"Jay",
+		"Lastname":"Khare",
+		"Age":21,
+		"Height":1.7,
+		"Email":"jay@email.com",
+		"Phone":12345678 
+	}`)
+	fmt.Println(string(data))
+	valid := json.Valid(data)
+	fmt.Println("Is data valid? ", valid)
+	fmt.Printf("Error: %v\n", json.Unmarshal(data, &s))
+	fmt.Println(s)
+}
+=========================================================================================================================================
+Example of handling complex data using Unmarshal function
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type Profile struct {
+	Username  string
+	Followers int
+}
+
+type student struct {
+	Firstname, Lastname string
+	Height              float64
+	isMale              bool
+	Languages           [2]string
+	Grades              map[string]string
+	Subjects            []string
+	Profile             *Profile
+}
+
+func main() {
+	Data := []byte(`{
+		"Firstname":"Jay",
+		"Lastname":"Khare",
+		"isMale":true,
+		"Languages":["German","French","Arabic"],
+		"Grades":{"Maths":"A+","Science":"A","GOLANG":"B"},
+		"Subjects":["Physics","Chemistry","Maths"],
+		"Profile":{"Followers":191}
+	}`)
+	fmt.Println(string(Data))
+	valid := json.Valid(Data)
+	fmt.Println(valid)
+	var s student
+	s = student{isMale: false, Subjects: nil, Grades: map[string]string{"Social Studies": "B-"}, Profile: &Profile{Username: "Arsonist99"}}
+	fmt.Println(s)
+	fmt.Printf("Error: %v\n", json.Unmarshal(Data, &s))
+	fmt.Println(s)
+	fmt.Println(*s.Profile)
+}
+=========================================================================================================================================
+Example of unmarshaling promoted fields
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type Profile struct {
+	Username  string
+	Followers int
+}
+
+type Account struct {
+	isMale bool
+	Email  string
+}
+
+type student struct {
+	Firstname, Lastname string
+	Age                 int
+	Height              float64
+	isMale              bool
+	Profile
+	Account
+}
+
+//From the result of this program above, we can see that Account field was not unmarshalled because this field is anonymously nested struct and it expected the field values to be present on the parent object.
+func main() {
+	data := []byte(`{
+		"Firstname":"Jay",
+		"Lastname":"Khare",
+		"Age":21,
+		"Height":1.77,
+		"isMale":true,
+		"Username":"collect78900",
+		"Followers":2012,
+		"Account":{"isMale":true,"Email":"jay@email.com"}
+	}`)
+	valid := json.Valid(data)
+	fmt.Println(valid)
+	var Jay student = student{Firstname: "V", Age: 21, Height: 1.82}
+	fmt.Printf("Error: %v", json.Unmarshal(data, &Jay))
+	fmt.Println("Values inside Jay variable of struct is")
+	fmt.Println(Jay)
+}
+=========================================================================================================================================
+Example of unmarshaling using struct tags
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type student struct {
+	Firstname string    `json:"fname"`
+	Lastname  string    `json:"-"` // the '-' tag means this field wont be used for unmarshalling
+	Height    float64   `json:""`
+	IsMale    bool      `json:"male"`
+	Languages [2]string `json:",omitempty"` // as size is 2 last value wont be entered
+	Profile   Profile   `json:"profile"`
+}
+
+type Profile struct {
+	Username  string `json:"uname"`
+	Followers int    `json:"f_count"`
+}
+
+// to unmarshall the json format uses field names as given in struct tabs... using fname instead of Firstname.
+func main() {
+	data := []byte(`{
+		"fname":"Jay",
+		"Lastname":"Khare",
+		"Height":1.76,
+		"IsMale":true,   
+		"Languages":["German","Arabic","French"],
+		"Profile":{"uname":"collect78900","f_count":2020}
+	}`)
+	valid := json.Valid(data)
+	fmt.Println(valid)
+	var jk student = student{Profile: Profile{Username: "Arsonist"}, Languages: [2]string{"hindi", "marathi"}}
+	fmt.Println(jk)
+	fmt.Printf("Error: %v\n", json.Unmarshal(data, &jk)) // IsMale is not male inside data hence it wont be unmarshalled...as it should have been "male":true as per struct tags
+	fmt.Println(jk)
+}
+
+
+=========================================================================================================================================
+Decoding data to a map
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+type Student map[string]interface{}
+
+func main() {
+	data := []byte(`{
+		"id":123,
+		"fullname":"Jay Khare",
+		"height":1.78,
+		"is_male":true,
+		"languages":null,
+		"grades":{"Maths":"A","Science":"A+"},
+		"profile":{"username":"Arsonist","followers":2020},
+		"Assignments":["assg1","assg2","assg3"]
+	}`)
+	valid := json.Valid(data)
+	fmt.Println(valid)
+	var jay Student
+	fmt.Printf("Error: %v\n", json.Unmarshal(data, &jay))
+	fmt.Println(jay)
+	for key, value := range jay {
+		fmt.Printf("Key is %v its value is %v\t Type of value is %T\n", key, value, value)
+	}
+}
+=========================================================================================================================================
+Another example of decoding to map
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+func main() {
+	data := []byte(`{
+		"id":123,
+		"fullname":"Jay Khare",
+		"height":1.78,
+		"is_male":true,
+		"languages":null,
+		"grades":{"Maths":"A","Science":"A+"},
+		"profile":{"username":"Arsonist","followers":2020},
+		"Assignments":["assg1","assg2","assg3"]
+	}`)
+	valid := json.Valid(data)
+	fmt.Println(valid)
+	var jay interface{}
+	fmt.Printf("Type of jay is %T and its value is %v", jay, jay)
+	fmt.Printf("Error: %v\n", json.Unmarshal(data, &jay))
+	//fmt.Println(jay)
+	fmt.Printf("AFTER Type of jay is %T and its value is %v\n\n", jay, jay)
+
+	// for key, value := range jay {
+	// 	fmt.Printf("Key is %v and its value is %v of the type %T", key, value, value)
+	// }
+
+	jaydata := jay.(map[string]interface{})
+	fmt.Printf("%T", jaydata)
+}
+=========================================================================================================================================
+concept of using unmarshaller
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+type Profile struct {
+	Username  string
+	Followers float64
+}
+
+type student struct {
+	Firstname string
+	Profile   Profile
+}
+
+func (p *Profile) UnmarshalJSON(data []byte) error {
+	var container map[string]interface{}
+	_ = json.Unmarshal(data, &container)
+	fmt.Printf("Container is of type %T and contains values %v\n", container, container)
+	uname, _ := container["Username"] // to retrieve key without testing for value
+	f_count, _ := container["Followers"]
+	fmt.Printf("uname is of type %T and contains values %v\n", uname, uname)
+	fmt.Printf("f_count is of type %T and contains values %v\n", f_count, f_count)
+	username, _ := uname.(string)         //get 'string value'
+	followercount, _ := f_count.(float64) //get 'float value'
+	fmt.Printf("username is of type %T and contains values %v\n", username, username)
+	fmt.Printf("followercount is of type %T and contains values %v\n", followercount, followercount)
+
+	p.Username = strings.ToUpper(username)
+	p.Followers = followercount
+	return nil
+}
+
+func main() {
+	data := []byte(`{
+		"Firstname":"Jay",
+		"Profile":{"Username":"Arsonist","Followers":13}
+	}`)
+	valid := json.Valid(data)
+	fmt.Println(valid)
+	var jay student
+	fmt.Println("---------------")
+	fmt.Printf("Error: %v\n", json.Unmarshal(data, &jay)) // (1)
+	//In the program above, the Profile field value implements the Unmarshaler interface.
+	//firstname was decoded by this unmarshal func and upon finding the Profile field value implements the Unmarshaler interface it delegate the responsibility of unmarshalling a field back to the field itself (Profile field)
+	// (1) will call the UnmarshalJSON function with JSON data of that field (Profile field in this case)(even for null) and it becomes the responsibility of that field to initialize/assign a value.
+	fmt.Println("Value in Jay ", jay)
+}
+=========================================================================================================================================
+Concept of Encoder 
+//Encoding data from golang into json format you require a writer object for encoding
+
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+)
+
+type Person struct {
+	Name string
+	Age  int
+}
+
+func main() {
+	p1 := Person{"Jay", 21}            // creating some data to be encoded..
+	buf := new(bytes.Buffer)           // creating a empty buffer with read and write methods....the buffer is of dynamic size
+	bufencoder := json.NewEncoder(buf) //bufencodr is an encoder which writes JSON values to an output stream which is buf here ....//NewEncoder func returns a new encoder that writes to w.
+	bufencoder.Encode(p1)              //Encode writes the JSON encoding of v(p1) to the stream, followed by a newline character.....basically it will marshall p1 and write the json value into buffer
+	//fmt.Println(buf)                   //prints json value stored into buffer...calls buf.string() method
+
+	bufencoder.Encode(Person{Name: "V", Age: 21})
+	fmt.Println(buf)
+}
+=========================================================================================================================================
+Concept of Decoder
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+type Person struct {
+	Firstname string
+	Age       int
+}
+
+func main() {
+	jsonStream := strings.NewReader(`{"Firstname":"Jay","Age":21} {"Firstname":"V","Age":21} {"Firstname":"N","Age":21}`)
+	decoder := json.NewDecoder(jsonStream)  //creates a new decoder that reads from input stream and has its own buffering
+	var Jay Person
+	decoder.Decode(&Jay) // basically unmarshals the data input to it and stores it in &Jay
+	//	decoder.Decode(&V)
+	//	decoder.Decode(&N)
+
+	fmt.Println(Jay)
+}
+=========================================================================================================================================
