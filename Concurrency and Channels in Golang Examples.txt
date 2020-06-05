@@ -588,3 +588,78 @@ func main() {
 	fmt.Println("main() over")
 }
 =========================================================================================================================
+example of worker pool along with wait group
+
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
+func sqworker(wg *sync.WaitGroup, task <-chan int, result chan<- int, instance int) {
+	for num := range task {
+		time.Sleep(time.Millisecond)
+		fmt.Printf("[Worker %v] Sending result by worker %v", instance, instance)
+		result <- num * num
+	}
+	wg.Done()
+}
+
+func main() {
+	fmt.Println("main() started")
+
+	var wg sync.WaitGroup
+	task := make(chan int, 10)
+	result := make(chan int, 10)
+
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go sqworker(&wg, task, result, i)
+	}
+
+	for i := 0; i < 5; i++ {
+		task <- i * 2
+	}
+	fmt.Println("main() wrote 5 tasks")
+	close(task)
+	wg.Wait()
+	for i := 0; i < 5; i++ {
+		res := <-result
+		fmt.Println("[main] result ", i, ": ", res)
+	}
+	fmt.Println("main() over")
+}
+=========================================================================================================================
+Understanding mutex
+
+package main
+
+import (
+	"fmt"
+	"sync"
+)
+
+var i int
+
+func incr(wg *sync.WaitGroup, m *sync.Mutex) {
+	m.Lock()
+	i = i + 1
+	m.Unlock()
+	wg.Done()
+}
+
+func main() {
+	var wg sync.WaitGroup
+	var m sync.Mutex
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go incr(&wg, &m)
+	}
+	wg.Wait()
+	fmt.Println("Value of i after 1000 operations is ", i)
+}
+=========================================================================================================================
+
+
