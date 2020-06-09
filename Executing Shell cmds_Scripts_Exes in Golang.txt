@@ -1,0 +1,494 @@
+====================================================================================================================================================================================
+Finding current system user using user.Current()
+
+package main
+
+import (
+	"fmt"
+	"os/user"
+)
+
+func main() {
+	fmt.Println(user.Current())
+}
+====================================================================================================================================================================================
+Example of Lookpath function
+
+package main
+
+import (
+	"fmt"
+	"os/exec"
+)
+
+func main() {
+	path, err := exec.LookPath("go")
+	if err != nil {
+		fmt.Println("Error: ", err)
+	} else {
+		fmt.Println("Go executable path is: ", path)
+	}
+}
+====================================================================================================================================================================================
+Concept of Cmd Structure
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+)
+
+func main() {
+	goexepath, err := exec.LookPath("go")
+	if err != nil {
+		fmt.Println("Error: ", err)
+	} else {
+		var cmd *exec.Cmd //The reason we are creating a pointer to the struct is because the methods Cmd structure implements have a pointer receiver.
+		cmd = &exec.Cmd{Path: goexepath, Args: []string{goexepath, "version"}, Stdout: os.Stdout, Stderr: os.Stdout}
+		fmt.Println(cmd.String()) //String returns a human-readable description of c. It is intended only for debugging. In particular, it is not suitable for use as input to a shell.
+	}
+}
+====================================================================================================================================================================================
+Using Cmd.run() 
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+)
+
+func main() {
+	goexepath, err := exec.LookPath("go")
+	if err != nil {
+		fmt.Println("Error: ", err)
+	} else {
+		var cmd *exec.Cmd //The reason we are creating a pointer to the struct is because the methods Cmd structure implements have a pointer receiver.
+		cmd = &exec.Cmd{Path: goexepath, Args: []string{goexepath, "version"}, Stdout: os.Stdout, Stderr: os.Stdout}
+		err := cmd.Run()
+		if err != nil {
+			fmt.Println("Error in running", err)
+		}
+	}
+}
+// O/P -->    go version go1.14.2 windows/amd64
+//This is the standard output of the go version command which was redirected to the terminal output since we have set the Stdout field of the struct to os.Stdout. 
+//The process will be blocked until the command exits.
+====================================================================================================================================================================================
+Using cmd.start() and cmd.wait() to execute a program in background.  // DID NOT EXECUTE PROPERLY DONT KNOW WHY
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+)
+
+func main() {
+	spath, err := exec.LookPath("./Sleep.sh")
+	if err != nil {
+		fmt.Println("Error: ", err)
+	} else {
+		var cmd *exec.Cmd
+		cmd = &exec.Cmd{Path: "./Sleep.sh", Args: []string{"./Sleep.sh", "1"}, Stderr: os.Stdout, Stdout: os.Stdout}
+		cmd.Start()
+		for i := 0; i < 100; i++ {
+			fmt.Println(i)
+		}
+		cmd.Wait()
+	}
+}
+====================================================================================================================================================================================
+Using command function - Returns an instance of Cmd structure.
+package main
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+)
+
+func main() {
+	cmd := exec.Command("Sleep.sh", "3")
+	cmd.Stderr = os.Stdout
+	cmd.Stdout = os.Stdout
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
+}
+====================================================================================================================================================================================
+using output function - Returns output into program instead of printing it on terminal
+
+package main
+
+import (
+	"fmt"
+	"os/exec"
+)
+
+func main() {
+	gopath, _ := exec.LookPath("go")
+	cmd := &exec.Cmd{Path: gopath, Args: []string{"go", "version"}, Stdout: nil}  //Stdout must be nil
+	//fmt.Println(cmd.String())
+	op, err := cmd.Output()
+	if err == nil {
+		fmt.Println("Output = ", string(op))
+	} else {
+		fmt.Println(err)
+	}
+}
+====================================================================================================================================================================================
+Returns information about Files present inside a directory
+
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+)
+
+func main() {
+	files, _ := ioutil.ReadDir("C:/Users/jay/tmp")
+	for _, f := range files {
+		fmt.Printf("Name: %v\tSize: %v\tMode: %v\t ModTime:: %v\t IsDir: %v  \n", f.Name(), f.Size(), f.Mode(), f.ModTime(), f.IsDir())
+	}
+}
+
+//This function takes a string argument which is the path of the directory and returns a list of FileInfo objects. The FileInfo interface defines some important methods to get information about the file.
+//type FileInfo interface {
+//   Name() string       // base name of the file
+//    Size() int64        // length in bytes
+//    Mode() FileMode     // file mode bits
+//    ModTime() time.Time // modification time
+//    IsDir() bool        // abbreviation for Mode().IsDir()
+//    Sys() interface{}   // underlying data source (can return nil)
+}
+====================================================================================================================================================================================
+Reading file information using GLOB pattern
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+func main() {
+	//Searching for .h5 files
+	files, _ := filepath.Glob("C:/Users/jay/*.h5")
+	for _, value := range files {
+		fileinfo, _ := os.Stat(value)
+		fmt.Printf("Name: %v\tSize: %v\tMode: %v\t ModTime:: %v\t IsDir: %v  \n", fileinfo.Name(), fileinfo.Size(), fileinfo.Mode(), fileinfo.ModTime(), fileinfo.IsDir())
+	}
+}
+====================================================================================================================================================================================
+Reading text from a file
+
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+)
+
+func main() {
+	data, err := ioutil.ReadFile("C:/Users/jay/tmp/Hola.txt")
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println("Raw Data :\n", data)
+		sdata := string(data)
+		fmt.Println("Readable format : \n", sdata)
+	}
+}
+====================================================================================================================================================================================
+Writing text to a file
+
+//If a file with the filepath does not exist, it will be created.
+// If the file already exists, the file’s content will be wiped out (truncated) before writing new content.
+
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+	"path/filepath"
+)
+
+const tempdirpath = "C:/Users/jay/tmp"
+
+func main() {
+	sdata := "Hello, I am trying to write this data onto the file if you see this in the file then this code works "
+	data := []byte(sdata)
+	fmt.Println(data)
+	fmt.Println(string(data))
+	path := filepath.Join(tempdirpath, "/mynewfile.txt")
+	err := ioutil.WriteFile(path, data, 0744) //0744 are the unix permision bits you can get these from https://chmod-calculator.com/
+	if err != nil {
+		fmt.Println("Error: ", err)
+	}
+}
+====================================================================================================================================================================================
+os.pathseprator
+
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	fmt.Printf("os.Pathseprator ==> %v\n", os.PathSeparator) //returns the ASCII int value of the path separator.
+	fmt.Printf("os.Pathseprator ==> %c\n", os.PathSeparator) //In Unix-like systems, the path separator is / while in case of Windows, it is \.
+}
+====================================================================================================================================================================================
+os.devnull
+
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	fmt.Printf("os.devnull --> %v", os.DevNull) //returns a string specifying a null device of the operating system. It is a mysterious virtual device that can consume any data but stores nowhere, just like a black hole.
+	
+}
+====================================================================================================================================================================================
+os.Args
+
+package main
+
+//The first item of the os.Args is always the location of the binary executable file.
+//The rest arguments are the custom values passed to the command, hence os.Args[1:] expression can be very handy to get all command-line arguments.
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	fmt.Printf("args = %v", os.Args) //os.Args variable returns a slice of strings that represents the arguments passed to the command which started the program execution
+}
+====================================================================================================================================================================================
+os.exit()
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"time"
+)
+
+func main() {
+	fmt.Println("main() started")
+	defer func() {
+		fmt.Println("main() over")
+	}()
+	time.AfterFunc(2*time.Second, func() { os.Exit(1) }) //The status code 0 indicates that the process was exited successfully while the status code 1 indicates the process was exited with a general error.
+
+	time.Sleep(3 * time.Second)
+}
+
+====================================================================================================================================================================================
+os.environ() to find all environment variable paths
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"strings"
+)
+
+func main() {
+	var details []string
+	details = os.Environ()
+	//	fmt.Println(details)
+	for index, value := range details {
+		//fmt.Printf("index: %v\t path:%v\t\n", key, value)
+		nameVal := strings.Split(value, "=")
+		fmt.Printf("[%d] %v ==> %v\n", index, nameVal[0], nameVal[1])
+	}
+}
+====================================================================================================================================================================================
+os.expand
+//os.expand function replaces placeholders in a string specified by $var or ${var} expression by using a mapping function.
+//The mapping function reads a placeholder and returns a replacement value for it
+
+//func Expand(s string, mapping func(string) string) string
+
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func mapper(placeholder string) string {
+	switch placeholder {
+	case "FRUIT":
+		return "mango"
+	case "CAR":
+		return "RBR"
+	default:
+		return "<empty>"
+	}
+}
+
+func main() {
+	raw := "I am eating $FRUIT and driving ${CAR} what about you $Doesntexist." //the $FRUIT got replaced by mango
+	formatted := os.Expand(raw, mapper)
+	fmt.Println(formatted)
+}
+====================================================================================================================================================================================
+os.Getenv and os.LookupEnv examples.....
+//os.lookup gives us the ability to check if an environment variable exists or not, 
+//we can perform some conditional operations which is not possible in the case of os.Getenv() function.
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	fruit := os.Getenv("FRUIT")
+	fmt.Println(fruit)
+	car := os.Getenv("CAR")
+	fmt.Println(car)
+	country := os.Getenv("COUNTRY")
+	fmt.Println(country)
+	val, exists := os.LookupEnv("FRUIT")
+	fmt.Println(val, exists)
+	val, exists = os.LookupEnv("CAR")
+	fmt.Println(val, exists)
+	val, exists = os.LookupEnv("COUNTRY")
+	fmt.Println(val, exists)
+}
+====================================================================================================================================================================================
+os.Getenv and os.Setenv examples
+
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	err := os.Setenv("FRUIT", "BANANA")
+	err1 := os.Setenv("CAR", "AUDI")
+	if err == nil && err1 == nil {
+		fmt.Printf("FRUIT => %v\n", os.Getenv("FRUIT"))
+		fmt.Printf("CAR => %v\n", os.Getenv("CAR"))
+	} else {
+		fmt.Println(err, err1)
+	}
+	fmt.Println("COUNTRY =>", os.Getenv("COUNTRY"))
+	os.Unsetenv("COUNTRY")
+	fmt.Println("COUNTRY =>", os.Getenv("COUNTRY"))
+	os.Unsetenv("CAR")
+	fmt.Println("CAR =>", os.Getenv("CAR"))
+
+}
+====================================================================================================================================================================================
+os.expan() example
+
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	os.Setenv("COUNTRY", "ANDORRA")
+	raw := "I am eating $FRUIT and driving $CAR in ${COUNTRY} $COUNTRY"
+	formatted := os.ExpandEnv(raw) //does not need mapper func it calls os.expand() internally
+	fmt.Println(formatted)
+}
+====================================================================================================================================================================================
+os.hostname example
+
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	user, err := os.Hostname()
+	fmt.Println(user, err)
+}
+
+====================================================================================================================================================================================
+os.UserHomeDir example
+
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	homedir, err := os.UserHomeDir() //The home directory is where the currently logged in user has permission to do absolutely anything.
+	fmt.Println(homedir, err)
+}
+====================================================================================================================================================================================
+os/user package
+
+//type User struct {
+//  Uid string // the user ID
+//  Gid string // the primary group ID
+//  Username string // the login name
+//  Name string // user's real or display name
+//  HomeDir string // user's home directory
+//}
+
+package main
+
+import (
+	"fmt"
+	"os/user"
+)
+
+func main() {
+	u1, err := user.Current()
+	fmt.Println(u1, err)
+}
+//We can use user.Current() function to get the information of the currently logged-in user. 
+//You can also use user.Lookup(username) method to find a user with a specific username. Both these methods return a User struct.
+
+====================================================================================================================================================================================
+os.Getwd and os.chdir example
+
+package main
+
+import (
+	"fmt"
+	"os"
+)
+
+func main() {
+	fmt.Println("At the start path is")
+	path, err := os.Getwd() //returns current dir path
+	fmt.Println(path, err)
+	fmt.Println("going back 1 dir")
+	err1 := os.Chdir("..") // relative to current dir as well as absolute path can be set
+	fmt.Println(err1)
+	fmt.Println("new path is ")
+	path, err = os.Getwd()
+	fmt.Println(path, err)
+}
+====================================================================================================================================================================================
