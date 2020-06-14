@@ -1,0 +1,253 @@
+===============================================================================================================================================================
+Creating a hello world server
+//An HTTP server can listen on  all the machine addresses using 0.0.0.0 address.
+
+// handler is a variable of handler interface and can implement all of handler interface methods.
+//We can pass a value of the type that implements this interface as an argument to the ListenAndServe function.
+
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http" //the http package also provides the APIs to create HTTPS secure servers 
+)
+
+type httphandler struct{}
+
+
+//When the HTTP server is started by invoking ListenAndServe(addr, handler) function, any incoming HTTP request will trigger the ServeHTTP method of the handler argument
+//The res argument contains the response object of interface type ResponseWriter which has the following description. (res is object of interface ResponseWriter and implements its methods)
+//type ResponseWriter interface {
+//    Header() Header 
+//    Write([]byte) (int, error)  // write data to the http response  
+//    WriteHeader(statusCode int) //add http status code and manipulate response headers
+//}
+//The req argument contains information about the HTTP request made by the client. It is a type of Request struct and it is a pointer. 
+//This object contains information about request headers and data (payload) sent by the client.
+
+
+func (h httphandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	io.WriteString(res, "Hello by") 
+	fmt.Fprintf(res, "Jay ")
+	data := []byte("❤️")
+	res.Write(data)
+}
+//The cool thing is, the Writer interface also defines the Write method with the exact signature.
+//Hence, res object which is a type of http.ResponseWriter interface can be treated as Writer (polymorphism).
+//The io built-in package provides the WriteString method which can write a string to the object of type Writer.
+//func WriteString(w io.Writer, s string) (n int, err error)
+//Also, the fmt package provides the Fprint and Fprintf methods to write any values to a Writer object.
+//func Fprint(w io.Writer, a ...interface{}) (n int, err error)
+
+func main() {
+	handler := httphandler{}
+	fmt.Println("HANDLER = ", handler)
+	http.ListenAndServe(":9000", handler) // starts an http server and locks the process,it listen to incoming HTTP requests and serves requests using Serve function under the hood.Returns and error if server couldnt start
+}
+//The http.ListenAndServe function internally creates a tcp listener on address addr using net.Listen function which returns a net.Listener and uses it with http.Serve function to listen to incoming connections using handler.
+//"<ip-address>:<port>"  or ":<port>"-->it will be reachable from all the addresses of the machine.You can also use ":http" as the addr argument value for address port ":80" and ":https" for address port ":443".
+
+===============================================================================================================================================================
+Example with servermux
+
+package main
+
+import "net/http"
+
+func main() {
+	mux := http.NewServeMux() //allocates and returns pointer to a new server-mux structure
+	mux.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
+		res.Write([]byte("Hello world ❤️"))
+	})
+	mux.HandleFunc("/hello/golang/", func(res http.ResponseWriter, req *http.Request) {
+		res.Write([]byte("❤️ Hello golang ❤️"))
+	})
+	http.ListenAndServe(":9000", mux)
+}
+===============================================================================================================================================================
+Using DefaultServeMux
+
+//When we pass nil as second arg to ListenAndServe(), Go will internally use the http.DefaultServeMux which is a global ServeMux instance.
+
+package main
+
+import (
+	"fmt"
+	"net/http"
+)
+
+func main() {
+	http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
+		res.Write([]byte("Hi from /"))
+	})
+	http.HandleFunc("/hello/", func(res http.ResponseWriter, req *http.Request) {
+		fmt.Println(res)
+		fmt.Println()
+		fmt.Println(req)
+		res.Write([]byte("Hello"))
+	})
+	http.HandleFunc("/hello/golang/", func(res http.ResponseWriter, req *http.Request) {
+		res.Write([]byte("Hello golang"))
+	})
+	http.ListenAndServe(":9000", nil)
+}
+===============================================================================================================================================================
+package main
+
+import "net/http"
+
+func main() {
+	http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {
+		header := res.Header()
+		header.Set("Content-Type", "application/json")
+		header.Set("Date", "01/01/2020")
+		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte(`{"STATUS":"FAILURE"}`))
+	})
+	http.ListenAndServe(":9000", nil)
+}
+===============================================================================================================================================================
+Serving file directories with FileServer function
+
+//FileServer is equipped with the functionality to set an appropriate Content-Type header based on the file type.
+
+
+//The http.FileServer() function provides the functionality to serve the entire file-system directory with indexes.
+//As you can see, it returns a Handler object which makes it a perfect candidate to be used as handler in ListenAndServe function or the Handle function.
+// It takes an argument of FileSystem interface type.
+package main
+
+import "net/http"
+
+func main() {
+	fh := http.FileServer(http.Dir("C:/Users/jay/tmp/files")) //var fs FileSystem = http.Dir("/tmp")
+	//The Dir type may look like a function but it is an alias of string data type and it implements Open method defined by the FileSystem interface.
+	//We can call the Dir type like a function which is nothing but a type-casting syntax.
+	http.ListenAndServe(":9000", fh)
+}
+===============================================================================================================================================================
+Example of serving files on routes
+
+package main
+
+import "net/http"
+
+func main() {
+
+	fh := http.FileServer(http.Dir("C:/Users/jay/tmp"))  
+
+	http.HandleFunc("/", func(res http.ResponseWriter, req *http.Request) {   //if path is 127.0.0.1:9000/ it displays "golang"
+		res.Header().Set("Content-Type", "text/html")
+		res.Write([]byte("Golang!!!"))
+	})
+
+	http.Handle("/static/", http.StripPrefix("/static", fh)) 
+	
+	// if path is 127.0.0.1:9000/static/   it displays indexes of C:\Users\jay\tmp  using filehandler....
+	// the /static part of url is removed and fh is used to access 127.0.0.1:9000/C:/Users/jay/tmp
+	
+	http.ListenAndServe(":9000", nil)
+}
+===============================================================================================================================================================
+Using ServeFile function to access files on routes
+
+package main
+
+import (
+	"net/http"
+	"path/filepath"
+)
+
+var tempdir = filepath.FromSlash("C:/Users/jay/tmp")
+
+//To convert a platform-independent path to a platform-dependent path, we can use path/filepath package.
+//The FromSlash function replaces the / with a valid separator like / in Unix systems and \ in the case of Windows.
+
+func servingfiles(res http.ResponseWriter, req *http.Request) {
+	http.ServeFile(res, req, filepath.Join(tempdir, "/files/test.pdf")) //filepath.Join() function to join two paths together with some sanitization (it removes extra slashes).
+}
+
+func main() {
+	http.HandleFunc("/pdf", servingfiles)
+	http.ListenAndServe(":8080", nil)
+}
+
+//Security issue 
+//if the request URL contains .. path element, which loosely translates to move up the directory, we are granting access to the directory which could contain confidential files.
+//To resolve this issue, we can either reject requests containing .. elements or strip insecure path elements before serving a file. 
+//However, ServeFile function does have a built-in mechanism to deal with this situation, in which case, it rejects the request.
+===============================================================================================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
